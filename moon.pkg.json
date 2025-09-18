@@ -1,0 +1,12 @@
+{
+    "import": [
+        {
+            "path": "Kaida-Amethyst/path",
+            "alias": "path"
+        },
+        {
+            "path": "moonbitlang/x/fs",
+            "alias": "fs"
+        }
+    ]
+}
