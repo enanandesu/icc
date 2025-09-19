@@ -2,8 +2,7 @@
   "name": "enanandesu/icc",
   "version": "0.1.0",
   "deps": {
-    "moonbitlang/x": "0.4.34",
-    "Kaida-Amethyst/path": "0.1.1"
+    "moonbitlang/x": "0.4.34"
   },
   "readme": "README.md",
   "repository": "https://github.com/enanandesu/icc",
