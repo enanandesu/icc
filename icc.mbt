@@ -33,7 +33,7 @@ pub impl Show for ParseError with output(e, logger) {
 ///
 /// Example:
 ///
-/// ```text
+/// ```moonbit
 ///  let profile_data = @enanandesu/icc.parse_from_file("./test/sRGB_IEC61966-2-1_black_scaled.icc")
 ///  inspect(profile_data.get_or_default("colorSpace", ""), content="RGB")
 ///  inspect(profile_data.get_or_default("creator", ""), content="")
@@ -74,7 +74,7 @@ pub fn parse(path : String) -> Map[String, String] raise ParseError {
 ///
 /// Example:
 ///
-/// ```text
+/// ```moonbit
 /// // Assuming you have ICC profile data as a buffer
 /// let icc_data_buffer = @buffer.new() // Your ICC profile data as buffer
 /// let profile_data = @enanandesu/icc.parse_from_buffer(icc_data_buffer)
@@ -104,7 +104,7 @@ pub fn parse_from_buffer(
 ///
 /// Example:
 ///
-/// ```text
+/// ```moonbit
 /// // Assuming you have ICC profile data as bytes
 /// let icc_bytes = b"..." // Your ICC profile data as bytes
 /// let profile_data = @enanandesu/icc.parse_from_bytes(icc_bytes)

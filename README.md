@@ -40,14 +40,14 @@ The return value is always `Map[String, String]` and each function may raise `Pa
 
 ### Parse from file
 
-```text
+```moonbit
 let profile = @enanandesu/icc.parse_from_file("./test/sRGB_IEC61966-2-1_black_scaled.icc")
 inspect(profile.get_or_default("colorSpace", ""), content="RGB")
 ```
 
 ### Parse from bytes
 
-```text
+```moonbit
 let bytes = @fs.read_file_to_bytes("./test/sRGB_ICC_v4_Appearance.icc")
 let profile = @enanandesu/icc.parse_from_bytes(bytes)
 inspect(profile.get_or_default("version", ""), content="4.3.0")
@@ -55,7 +55,7 @@ inspect(profile.get_or_default("version", ""), content="4.3.0")
 
 ### Parse from buffer
 
-```text
+```moonbit
 let bytes = @fs.read_file_to_bytes("./test/D65_XYZ.icc")
 let buf = @buffer.new(size_hint=bytes.length())
 buf.write_bytes(bytes)
@@ -65,7 +65,7 @@ inspect(profile.get_or_default("creator", ""), content="none")
 
 ### Parse from raw-string bytes
 
-```text
+```moonbit
 let bytes = @fs.read_file_to_bytes("./test/D65_XYZ.icc")
 let text = bytes.to_unchecked_string()  // UTF-16 code units equal to raw bytes
 let profile = @enanandesu/icc.parse_from_string(text)
