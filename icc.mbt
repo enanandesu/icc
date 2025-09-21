@@ -1,5 +1,5 @@
 ///|
-pub suberror ParseError String
+suberror ParseError String
 
 ///|
 pub impl Show for ParseError with to_string(e) {
@@ -16,14 +16,130 @@ pub impl Show for ParseError with output(e, logger) {
 }
 
 ///|
-pub fn parse(dir : String) -> Map[String, String] raise ParseError {
+/// Load an ICC file from disk and decode it into a key-value map containing profile metadata.
+/// 
+/// Parameters:
+///
+/// * `path` : The file system path to the ICC profile file to be loaded and
+///   parsed.
+///
+/// Returns a `Map[String, String]` containing the parsed ICC profile metadata
+/// as key-value pairs. Common keys include "description", "manufacturer",
+/// "model", "colorSpace", "connectionSpace", "intent", "version", "whitepoint",
+/// and others depending on the profile content.
+///
+/// Throws an error of type `ParseError` if the file cannot be read from disk or
+/// if the ICC profile data is invalid or corrupted.
+///
+/// Example:
+///
+/// ```text
+///  let profile_data = @enanandesu/icc.parse_from_file("./test/sRGB_IEC61966-2-1_black_scaled.icc")
+///  inspect(profile_data.get_or_default("colorSpace", ""), content="RGB")
+///  inspect(profile_data.get_or_default("creator", ""), content="")
+/// ```
+///
+pub fn parse_from_file(path : String) -> Map[String, String] raise ParseError {
   try {
-    let content = @fs.read_file_to_bytes(dir)
+    let content = @fs.read_file_to_bytes(path)
     let buf = @buffer.new(size_hint=content.length())
     buf.write_bytes(content)
-    parse_content(buf)
+    parse_from_buffer(buf)
   } catch {
-    e => raise ParseError("Failed to parse file \{dir}: \{e}")
+    e => raise ParseError("Failed to parse file \{path}: \{e}")
+  }
+}
+
+///|
+/// Parses an ICC profile file from the specified file path (alias for
+/// `parse_from_file`).
+pub fn parse(path : String) -> Map[String, String] raise ParseError {
+  parse_from_file(path)
+}
+
+///|
+/// Parses an ICC profile from a buffer containing ICC profile data.
+///
+/// Parameters:
+///
+/// * `content` : A buffer containing the raw ICC profile data to be parsed.
+///
+/// Returns a `Map[String, String]` containing the parsed ICC profile metadata
+/// as key-value pairs. Common keys include "description", "manufacturer",
+/// "model", "colorSpace", "connectionSpace", "intent", "version", "whitepoint",
+/// and others depending on the profile content.
+///
+/// Throws an error of type `ParseError` if the ICC profile data is invalid,
+/// corrupted, or does not meet the minimum size requirements.
+///
+/// Example:
+///
+/// ```text
+/// // Assuming you have ICC profile data as a buffer
+/// let icc_data_buffer = @buffer.new() // Your ICC profile data as buffer
+/// let profile_data = @enanandesu/icc.parse_from_buffer(icc_data_buffer)
+/// inspect(profile_data.get_or_default("colorSpace", ""), content="RGB")
+/// ```
+///
+pub fn parse_from_buffer(
+  content : @buffer.Buffer,
+) -> Map[String, String] raise ParseError {
+  parse_content(content)
+}
+
+///|
+/// Parses an ICC profile from raw bytes data.
+///
+/// Parameters:
+///
+/// * `data` : The raw ICC profile data as bytes to be parsed.
+///
+/// Returns a `Map[String, String]` containing the parsed ICC profile metadata
+/// as key-value pairs. Common keys include "description", "manufacturer",
+/// "model", "colorSpace", "connectionSpace", "intent", "version", "whitepoint",
+/// and others depending on the profile content.
+///
+/// Throws an error of type `ParseError` if the ICC profile data is invalid,
+/// corrupted, or does not meet the minimum size requirements.
+///
+/// Example:
+///
+/// ```text
+/// // Assuming you have ICC profile data as bytes
+/// let icc_bytes = b"..." // Your ICC profile data as bytes
+/// let profile_data = @enanandesu/icc.parse_from_bytes(icc_bytes)
+/// inspect(profile_data.get_or_default("colorSpace", ""), content="RGB")
+/// ```
+///
+pub fn parse_from_bytes(data : Bytes) -> Map[String, String] raise ParseError {
+  let buf = @buffer.new(size_hint=data.length())
+  buf.write_bytes(data)
+  parse_from_buffer(buf)
+}
+
+///|
+/// Parse ICC bytes carried inside a `String` (each code unit is treated as
+/// raw byte data; callers must ensure the string contains the original profile
+/// bytes, e.g. by using `to_unchecked_string()`).
+/// 
+/// Parameters:
+///
+/// * `data` : A string whose UTF-16 code units contain the raw ICC bytes.
+///   Typical use cases are round-tripping binary data through `Bytes` ->
+///   `String::from_bytes_unchecked()` (or similar) after base64 decoding.
+///
+/// Returns a `Map[String, String]` containing the parsed ICC metadata.
+///
+/// Throws `ParseError` when the string cannot be treated as ICC bytes or the
+/// profile violates format constraints.
+pub fn parse_from_string(data : String) -> Map[String, String] raise ParseError {
+  try {
+    let bytes = data.to_bytes()
+    let buf = @buffer.new(size_hint=bytes.length())
+    buf.write_bytes(bytes)
+    parse_from_buffer(buf)
+  } catch {
+    e => raise ParseError("Failed to parse string content: \{e}")
   }
 }
 
@@ -145,7 +261,7 @@ fn read_signature(data : FixedArray[Byte], offset : Int) -> String {
     return ""
   }
   let builder = StringBuilder::new(size_hint=4)
-  for i = 0; i < 4; i = i + 1 {
+  for i in 0..<4 {
     builder.write_char(Int::unsafe_to_char(data[offset + i].to_int()))
   }
   trim_ascii(builder.to_string())
@@ -153,68 +269,36 @@ fn read_signature(data : FixedArray[Byte], offset : Int) -> String {
 
 ///|
 fn describe_device_class(code : String) -> String {
-  if code == "" {
-    return ""
+  match code {
+    "" => ""
+    "scnr" | "SCNR" => "Scanner"
+    "mntr" | "MNTR" => "Monitor"
+    "prtr" | "PRTR" => "Printer"
+    "link" | "LINK" => "Link"
+    "abst" | "ABST" => "Abstract"
+    "spac" | "SPAC" => "Space"
+    "nmcl" | "NMCL" => "Named color"
+    _ => code
   }
-  if code == "scnr" || code == "SCNR" {
-    return "Scanner"
-  }
-  if code == "mntr" || code == "MNTR" {
-    return "Monitor"
-  }
-  if code == "prtr" || code == "PRTR" {
-    return "Printer"
-  }
-  if code == "link" || code == "LINK" {
-    return "Link"
-  }
-  if code == "abst" || code == "ABST" {
-    return "Abstract"
-  }
-  if code == "spac" || code == "SPAC" {
-    return "Space"
-  }
-  if code == "nmcl" || code == "NMCL" {
-    return "Named color"
-  }
-  code
 }
 
 ///|
 fn describe_vendor(code : String) -> String {
-  if code == "" {
-    return ""
+  match code {
+    "" => ""
+    "appl" | "APPL" => "Apple"
+    "adbe" | "ADBE" => "Adobe"
+    "msft" | "MSFT" => "Microsoft"
+    "sunw" | "SUNW" => "Sun Microsystems"
+    "sgi" | "SGI" => "Silicon Graphics"
+    "tgnt" | "TGNT" => "Taligent"
+    _ => code
   }
-  if code == "appl" || code == "APPL" {
-    return "Apple"
-  }
-  if code == "adbe" || code == "ADBE" {
-    return "Adobe"
-  }
-  if code == "msft" || code == "MSFT" {
-    return "Microsoft"
-  }
-  if code == "sunw" || code == "SUNW" {
-    return "Sun Microsystems"
-  }
-  if code == "sgi" || code == "SGI" {
-    return "Silicon Graphics"
-  }
-  if code == "tgnt" || code == "TGNT" {
-    return "Taligent"
-  }
-  code
 }
 
 ///|
 fn is_printable_ascii(text : String) -> Bool {
-  for i = 0; i < text.length(); i = i + 1 {
-    let ch = text[i]
-    if ch < 32 || ch > 126 {
-      return false
-    }
-  }
-  true
+  text.iter().all(ch => ch >= ' ' && ch <= '~')
 }
 
 ///|
@@ -244,7 +328,7 @@ fn format_s15_fixed16(value : Int) -> String {
     return sign + int_str
   }
   let builder = StringBuilder::new(size_hint=trim_end)
-  for i = 0; i < trim_end; i = i + 1 {
+  for i in 0..<trim_end {
     builder.write_char(Int::unsafe_to_char(frac_str[i]))
   }
   let trimmed = builder.to_string()
@@ -315,7 +399,7 @@ fn trim_ascii(text : String) -> String {
     return ""
   }
   let builder = StringBuilder::new(size_hint=end - start)
-  for i = start; i < end; i = i + 1 {
+  for i in start..<end {
     builder.write_char(Int::unsafe_to_char(text[i]))
   }
   builder.to_string()
@@ -387,7 +471,7 @@ fn find_tag_entry(
   if tag_count > max_entries {
     return (-1, 0)
   }
-  for i = 0; i < tag_count; i = i + 1 {
+  for i in 0..<tag_count {
     let entry_offset = entries_start + i * 12
     if entry_offset + 12 > len {
       break
@@ -456,7 +540,7 @@ fn ascii_slice_to_string(
     return ""
   }
   let builder = StringBuilder::new(size_hint=length)
-  for i = 0; i < length; i = i + 1 {
+  for i in 0..<length {
     builder.write_char(Int::unsafe_to_char(data[start + i].to_int()))
   }
   builder.to_string()
@@ -477,7 +561,7 @@ fn parse_mluc_type(data : FixedArray[Byte], offset : Int, size : Int) -> String 
   }
   let records_base = offset + 16
   let mut first_non_empty = ""
-  for i = 0; i < record_count; i = i + 1 {
+  for i in 0..<record_count {
     let record_offset = records_base + i * record_size
     if record_offset + 12 > offset + size {
       continue
@@ -496,7 +580,6 @@ fn parse_mluc_type(data : FixedArray[Byte], offset : Int, size : Int) -> String 
       continue
     }
     let lang = ascii_slice_to_string(data, record_offset, 2)
-    // Prefer English entry if available.
     if lang == "en" {
       return text
     }

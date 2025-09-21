@@ -64,3 +64,88 @@ test {
       )
   }
 }
+
+///|
+test "parse_from_buffer success" {
+  let bytes = @fs.read_file_to_bytes(
+    "./test/sRGB_IEC61966-2-1_black_scaled.icc",
+  )
+  let buf = @buffer.new(size_hint=bytes.length())
+  buf.write_bytes(bytes)
+  let profile = parse_from_buffer(buf)
+  inspect(
+    profile.get_or_default("copyright", ""),
+    content="Copyright International Color Consortium, 2009",
+  )
+}
+
+///|
+test "parse_from_buffer too small" {
+  let buf = @buffer.new(size_hint=16)
+  buf.write_bytes(Bytes::make(16, 0))
+  ignore(parse_from_buffer(buf)) catch {
+    e =>
+      inspect(
+        e,
+        content="ICC profile is too small (expected at least 132 bytes)",
+      )
+  }
+}
+
+///|
+test "parse_from_bytes success" {
+  let bytes = @fs.read_file_to_bytes("./test/sRGB_ICC_v4_Appearance.icc")
+  let profile = parse_from_bytes(bytes)
+  inspect(profile.get_or_default("version", ""), content="4.3.0")
+}
+
+///|
+test "parse_from_bytes too small" {
+  let small = Bytes::make(16, 0)
+  ignore(parse_from_bytes(small)) catch {
+    e =>
+      inspect(
+        e,
+        content="ICC profile is too small (expected at least 132 bytes)",
+      )
+  }
+}
+
+///|
+test "parse_from_string success" {
+  let data = @fs.read_file_to_bytes("./test/D65_XYZ.icc").to_unchecked_string()
+  let profile = parse_from_string(data)
+  inspect(profile.get_or_default("creator", ""), content="none")
+}
+
+///|
+test "parse_from_string too small" {
+  let builder = StringBuilder::new(size_hint=16)
+  for _ in 0..<16 {
+    builder.write_char('A')
+  }
+  let data = builder.to_string()
+  ignore(parse_from_string(data)) catch {
+    e =>
+      inspect(
+        e,
+        content="Failed to parse string content: ICC profile is too small (expected at least 132 bytes)",
+      )
+  }
+}
+
+///|
+test "parse_from_string utf8 text" {
+  let builder = StringBuilder::new(size_hint=200)
+  for _ in 0..<100 {
+    builder.write_string("Hello UTF-8 text!")
+  }
+  let data = builder.to_string()
+  ignore(parse_from_string(data)) catch {
+    e =>
+      inspect(
+        e,
+        content="Failed to parse string content: ICC profile tag table is invalid",
+      )
+  }
+}
